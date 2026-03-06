@@ -1,28 +1,8 @@
-import { chromium } from "playwright";
+import { chromium, Browser, BrowserContext, Page } from "playwright";
 import { sampleProfile } from "./profile";
 import type { ApplicationResult, UserProfile } from "./types";
-
-/**
- * ============================================================
- * TSENTA TAKE-HOME ASSESSMENT - ATS Form Automator
- * ============================================================
- *
- * Your task: Build an automation system that can fill out job
- * application forms across MULTIPLE ATS platforms using Playwright.
- *
- * There are two mock forms to automate:
- *
- *   1. Acme Corp    → http://localhost:3939/acme.html
- *      Multi-step form with progress bar, typeahead, checkboxes,
- *      radio buttons, conditional fields, file upload
- *
- *   2. Globex Corp  → http://localhost:3939/globex.html
- *      Single-page accordion form with toggle switches, chip
- *      selectors, salary slider, datalist, different selectors
- *
- * Your code should handle BOTH forms with a shared architecture.
- * Read the README for full instructions and evaluation criteria.
- */
+import { AcmeAutomator } from "./engines/acme.automator";
+import { GlobexAutomator } from "./engines/globex.automator";
 
 const BASE_URL = "http://localhost:3939";
 
@@ -31,43 +11,92 @@ async function applyToJob(
   profile: UserProfile
 ): Promise<ApplicationResult> {
   const startTime = Date.now();
+  const browser: Browser = await chromium.launch({ 
+    headless: false,
+    slowMo: 50 // Slight global slow down to assist visibility
+  });
+  
+  const context: BrowserContext = await browser.newContext();
+  const page: Page = await context.newPage();
 
-  // TODO: Implement your automation here
-  //
-  // Think about:
-  //   - How do you detect which ATS/form you're on?
-  //   - How do you share logic for common field types (text, dropdown, file upload)
-  //     while handling platform-specific differences (typeahead vs datalist,
-  //     checkboxes vs chips, radio buttons vs toggles)?
-  //   - How would a third ATS be added without rewriting everything?
+  try {
+    await page.goto(url);
 
-  throw new Error("Not implemented — this is your task!");
+    // Platform Detection & Engine Selection
+    const engines = [
+      new AcmeAutomator(page),
+      new GlobexAutomator(page)
+    ];
+
+    let result: ApplicationResult | null = null;
+
+    for (const engine of engines) {
+      if (await engine.canHandle()) {
+        // Execute the strategy
+        const submission = await engine.apply(profile);
+        
+        result = {
+          success: submission.success,
+          confirmationId: submission.confirmationId,
+          durationMs: Date.now() - startTime,
+          error: submission.error
+        };
+        break;
+      }
+    }
+
+    if (!result) {
+      throw new Error(`No compatible engine found for URL: ${url}`);
+    }
+
+    await browser.close();
+    return result;
+
+  } catch (err: any) {
+    // Take a failure screenshot if things go south
+    const screenshotPath = `failures/error-${Date.now()}.png`;
+    await page.screenshot({ path: screenshotPath });
+    await browser.close();
+
+    return {
+      success: false,
+      error: err.message,
+      screenshotPath,
+      durationMs: Date.now() - startTime,
+    };
+  }
 }
 
-// ── Entry point ──────────────────────────────────────────────
 async function main() {
   const targets = [
     { name: "Acme Corp", url: `${BASE_URL}/acme.html` },
     { name: "Globex Corporation", url: `${BASE_URL}/globex.html` },
   ];
 
+  const finalSummary = [];
+
   for (const target of targets) {
-    console.log(`\n--- Applying to ${target.name} ---`);
+    console.log(`\n[INITIATING] Applying to ${target.name}...`);
 
     try {
       const result = await applyToJob(target.url, sampleProfile);
 
       if (result.success) {
-        console.log(`  Application submitted!`);
-        console.log(`  Confirmation: ${result.confirmationId}`);
-        console.log(`  Duration: ${result.durationMs}ms`);
+        console.log(`SUCCESS] Application submitted!`);
+        console.log(`Confirmation: ${result.confirmationId}`);
+        console.log(`Duration: ${result.durationMs}ms`);
+        finalSummary.push({ Platform: target.name, Status: "PASSED", ID: result.confirmationId });
       } else {
-        console.error(`  Failed: ${result.error}`);
+        console.error(`[FAILED] ${result.error}`);
+        finalSummary.push({ Platform: target.name, Status: "FAILED", ID: "N/A" });
       }
     } catch (err) {
-      console.error(`  Fatal error:`, err);
+      console.error(`[FATAL ERROR]:`, err);
     }
   }
+
+  console.log("\n--- FINAL EXECUTION SUMMARY ---");
+  console.table(finalSummary);
 }
 
 main();
