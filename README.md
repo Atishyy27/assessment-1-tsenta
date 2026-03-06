@@ -1,7 +1,7 @@
 > **🚀 ATS Automation Engine by Atishay Jain**
 > 
 > **Quick Links:**
-> - 📄 **[Read the Design Document (DESIGN.md)](./DESIGN.md)** - Explains the Strategy Pattern architecture and human-like evasion mechanics.
+> - 📄 **[Read the Design Document (design.md)](./design.md)** - Explains the Strategy Pattern architecture and human-like evasion mechanics.
 > - ⚙️ **To Run:** `npm install` -> `npm run serve` (Terminal 1) -> `npm start` (Terminal 2).
 > 
 > **Highlights of this implementation:**
