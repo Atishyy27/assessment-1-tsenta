@@ -11,3 +11,6 @@
 > - 🏆 **Bonus points achieved:** Structured console logging, performance tracking (duration), and auto-screenshot capture on failure.
 
 ---
+
+# Console logs:
+<img width="1321" height="1060" alt="image" src="https://github.com/user-attachments/assets/cf248e33-f210-4d03-be0c-c5dc6de17234" />
